@@ -327,12 +327,19 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
     return pool[Math.floor(Math.random() * pool.length)];
   };
 
-  const triggerEvolution = (monster: Monster) => {
-    const { monster: evolved, evolved: didEvolve, logs } = checkGoryoEvolution(monster, []);
-    if (didEvolve) {
+  // 進化フラッシュ: activePlayer.form が上がったときに発火（updater 外で setState）
+  const prevFormRef = useRef(activePlayer?.form ?? 1);
+  useEffect(() => {
+    const newForm = activePlayer?.form ?? 1;
+    if (newForm > prevFormRef.current) {
       setEvolutionFlash(true);
       setTimeout(() => setEvolutionFlash(false), 1000);
     }
+    prevFormRef.current = newForm;
+  }, [activePlayer?.form]);
+
+  const triggerEvolution = (monster: Monster) => {
+    const { monster: evolved, logs } = checkGoryoEvolution(monster, []);
     return { evolved, logs };
   };
 
@@ -342,6 +349,10 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
     const { locked } = isSkillLocked(skill, gameState);
     if (gameState.turn !== 'player' || gameState.energy < effectiveCost || showResult || locked) return;
     if (gameState.playerStunTurns > 0) return;
+
+    // shake は updater 外で呼ぶ（updater 内で setState はクラッシュの原因）
+    const BS_DMG = new Set(['s10','s14','s15','s16','s19','s20','s22','s24','s26','s27','s33','s38','s39','s44','s45','s49','s50','s51','s56','s57','s62']);
+    if (skill.type === 'attack' || BS_DMG.has(skill.id)) shake('enemy');
 
     setGameState(prev => {
       let next = { ...prev };
@@ -359,7 +370,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       else if (skill.id === 's10') {
         const dmg = activeEnemy.isWaterType ? 60 : 30;
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         newPlayerMonster.attacksGiven = (newPlayerMonster.attacksGiven ?? 0) + 1;
         logs.push(`食欲旺盛！${activeEnemy.isWaterType ? '水系2倍！' : ''}${dmg}ダメージ！`);
       }
@@ -378,7 +388,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       }
       else if (skill.id === 's14') {
         newEnemyHp = Math.max(0, newEnemyHp - 42);
-        shake('enemy');
         next.playerStunTurns = 1;
         next.playerNoEnergyNextTurn = true;
         newPlayerMonster.attacksGiven = (newPlayerMonster.attacksGiven ?? 0) + 1;
@@ -390,14 +399,12 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         let dmg = 15;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         logs.push(`焼きたてタックル！${dmg}ダメージ！`);
       }
       else if (skill.id === 's16') {
         let dmg = 20;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         logs.push(`トースト連続発射！${dmg}ダメージ！`);
       }
       else if (skill.id === 's17') {
@@ -412,7 +419,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         let dmg = 45;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         newPlayerMonster.hp = Math.max(1, newPlayerMonster.hp - 10);
         logs.push(`黒焦げオーバーヒート！${dmg}ダメージ！自分に10反動ダメージ…`);
       }
@@ -420,7 +426,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         let dmg = 60;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         newPlayerMonster.hp = Math.min(newPlayerMonster.maxHp, newPlayerMonster.hp + 15);
         next.playerStunTurns = 2;
         logs.push(`限界突破フルブレックファスト！${dmg}ダメージ＋HP+15！2ターン行動不能…`);
@@ -436,7 +441,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         const use = Math.min(3, prev.tapiocaStock);
         const dmg = use * 12;
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         next.tapiocaStock = prev.tapiocaStock - use;
         logs.push(`プチプチ弾！🧋×${use}消費、${dmg}ダメージ！`);
       }
@@ -447,7 +451,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       else if (skill.id === 's24') {
         let drainDmg = 15;
         newEnemyHp = Math.max(0, newEnemyHp - drainDmg);
-        shake('enemy');
         newPlayerMonster.hp = Math.min(newPlayerMonster.maxHp, newPlayerMonster.hp + drainDmg);
         logs.push(`ストロー吸引！15ダメージ＋HP15回復！`);
       }
@@ -459,7 +462,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         const use = prev.tapiocaStock;
         const dmg = use * 15;
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         next.tapiocaStock = 0;
         next.energy = 0;
         logs.push(`窒息タピオカラッシュ！🧋×${use}全消費、${dmg}ダメージ！エナジー0！`);
@@ -470,7 +472,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         let dmg = 20;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         logs.push(`居合・小枝斬り！${dmg}ダメージ！`);
       }
       else if (skill.id === 's28') {
@@ -504,7 +505,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         const used = Math.min(5, prev.potatoStock);
         const dmg = used * 5;
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         next.potatoStock = prev.potatoStock - used;
         logs.push(`ポテト投げ！🍟×${used}本投げて${dmg}ダメージ！残り${next.potatoStock}本`);
       }
@@ -530,7 +530,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         const used = prev.potatoStock + 5;
         const dmg = used * 4;
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         next.potatoStock = 0;
         logs.push(`ポテトLサイズご注文！🍟×${used}本で${dmg}ダメージ！ポテト全消費！`);
       }
@@ -563,7 +562,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
           logs.push(`🎰 ${dmg === 30 ? 'SSR！' : 'あたり！'}${dmg}ダメージ！`);
         }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
       }
       else if (skill.id === 's40') {
         // ラッキー！: 0コスト、1-3エナジー獲得、期待値1-8アップ
@@ -608,7 +606,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
           // 限界突破クライマックス: 3/4 HP damage、コスト0（getEffectiveCostで制御）、期待値→0
           const dmg = Math.floor(activeEnemy.hp * 3 / 4);
           newEnemyHp = Math.max(0, activeEnemy.hp - dmg);
-          shake('enemy');
           next.energy = prev.energy; // エナジー消費なし（コスト0は getEffectiveCost で処理）
           next.saitoKitaiChi = 0;
           next.saitoHazureCount = 0;
@@ -618,7 +615,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
           // 通常クライマックス: 2/3 HP damage
           const dmg = Math.floor(activeEnemy.hp * 2 / 3);
           newEnemyHp = Math.max(0, activeEnemy.hp - dmg);
-          shake('enemy');
           next.saitoKitaiChi = 4;
           next.saitoHazureCount = 0;
           logs.push(`🎆 クライマックス！！！${dmg}ダメージ（残HP2/3）！期待値→4、ハズレリセット`);
@@ -628,7 +624,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       // ── バグマスター スキル ──────────────────────
       else if (skill.id === 's45') {
         newEnemyHp = Math.max(0, newEnemyHp - 10);
-        shake('enemy');
         next.enemyBugCount = prev.enemyBugCount + 1;
         logs.push(`スパム送信！10ダメージ＋バグ付与🐛（バグ${next.enemyBugCount}）`);
       }
@@ -648,7 +643,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       }
       else if (skill.id === 's49') {
         newEnemyHp = Math.max(0, newEnemyHp - 15);
-        shake('enemy');
         newPlayerMonster.hp = Math.min(newPlayerMonster.maxHp, newPlayerMonster.hp + 15);
         // エナジー奪取は次ターンのエナジー回復を0にする（enemyDamageDebuffで近似）
         next.enemyDamageDebuff = (prev.enemyDamageDebuff ?? 0) + 2;
@@ -656,7 +650,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       }
       else if (skill.id === 's50') {
         newEnemyHp = Math.max(0, newEnemyHp - 70);
-        shake('enemy');
         next.enemyBugCount = 0;
         logs.push(`💥 ブルースクリーン！70ダメージ！バグリセット！`);
       }
@@ -665,7 +658,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       else if (skill.id === 's57') {
         // 小銭投げ: 10dmg, vs ギャンブラー斎藤なら期待値+2エナジー+2
         newEnemyHp = Math.max(0, newEnemyHp - 10);
-        shake('enemy');
         if (activeEnemy.id === 'm6') {
           // 敵ギャンブラー斎藤の期待値とエナジーをCPU側で追加
           next.cpuKitaiChi = Math.min(15, prev.cpuKitaiChi + 2);
@@ -712,7 +704,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         // 自己破産手続き: 敵エナジー→0、敵HP半分、自エナジー→0
         next.enemyEnergy = 0;
         newEnemyHp = Math.floor(activeEnemy.hp / 2);
-        shake('enemy');
         next.energy = 0;
         next.saitoKitaiChi = 0;
         next.saitoLimitBreakActive = false;
@@ -725,7 +716,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         let dmg = 15;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         logs.push(`資材ぶん投げ！${dmg}ダメージ！🏗️`);
       }
       else if (skill.id === 's52') {
@@ -749,7 +739,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
       else if (skill.id === 's56') {
         const floorDmg = Math.min(150, prev.buildingFloor * 15);
         newEnemyHp = Math.max(0, newEnemyHp - floorDmg);
-        shake('enemy');
         newPlayerMonster.hp = Math.max(1, newPlayerMonster.hp - 30);
         next.buildingFloor = 0;
         logs.push(`🏗️💥 ビルヂング大崩落！${floorDmg}ダメージ！自分30ダメ！階層リセット！`);
@@ -760,7 +749,6 @@ export default function BattleScreen({ onBack, playerTeam, enemyTeam }: BattleSc
         let dmg = skill.value;
         if (prev.bonsaiNextAttackDouble) { dmg *= 2; next.bonsaiNextAttackDouble = false; logs.push('捨て身の剪定で威力2倍！'); }
         newEnemyHp = Math.max(0, newEnemyHp - dmg);
-        shake('enemy');
         logs.push(`${activePlayer.name}の${skill.name}！${dmg}ダメージ。`);
       }
       else if (skill.type === 'buff') {

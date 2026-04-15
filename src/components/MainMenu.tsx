@@ -136,16 +136,16 @@ export default function MainMenu({ onStartBattle, onOpenCharacters, onOpenShop, 
           />
         </div>
 
-        {/* Right Side: Battle */}
-        <button 
-          onClick={onStartBattle}
+        {/* Right Side: Battle (Online) */}
+        <button
+          onClick={onOpenOnline}
           className="group relative"
         >
           <div className="absolute inset-0 bg-yellow-400 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
           <div className="relative bg-gradient-to-b from-yellow-400 to-orange-600 px-12 py-6 rounded-3xl border-b-8 border-orange-800 shadow-2xl active:translate-y-1 active:border-b-4 transition-all">
             <div className="flex flex-col items-center">
               <span className="text-3xl font-black italic uppercase tracking-tighter text-white drop-shadow-md">バトル</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-orange-900 mt-1">イベント開催中!</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-orange-900 mt-1">オンライン対戦</span>
             </div>
           </div>
         </button>
