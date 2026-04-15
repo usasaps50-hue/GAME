@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goryo Monster Animator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+        }
+        .container {
+            position: relative;
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .glow {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.1) 0%, transparent 70%);
+            filter: blur(60px);
+            border-radius: 50%;
+            transform: scale(1.5);
+            pointer-events: none;
+        }
+        .header {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 20;
+            width: 100%;
+        }
+        .title {
+            font-size: 2.25rem;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            text-transform: uppercase;
+            font-style: italic;
+            color: #f97316;
+            margin: 0;
+            text-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .title span { color: white; }
+        .subtitle {
+            font-size: 10px;
+            font-family: monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.4em;
+            opacity: 0.4;
+            margin-top: 0.25rem;
+        }
+        canvas {
+            position: relative;
+            z-index: 10;
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 1000px;
+            padding: 0 1rem;
+            z-index: 30;
+        }
+        @media (min-width: 640px) { .controls { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 768px) { .controls { grid-template-columns: repeat(7, 1fr); } }
+        .action-btn {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            font-size: 0.875rem;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-bottom: 4px solid rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .action-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
+        .action-btn:active { transform: translateY(2px); border-bottom-width: 0; margin-top: 4px; }
+        .bg-red { background-color: #dc2626; }
+        .bg-blue { background-color: #3b82f6; }
+        .bg-cyan { background-color: #22d3ee; }
+        .bg-slate { background-color: #475569; }
+        .bg-green { background-color: #22c55e; }
+        .bg-orange { background-color: #f97316; }
+        .bg-rose { background-color: #9f1239; }
+        footer {
+            margin-top: 3rem;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            opacity: 0.3;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="glow"></div>
+        <div class="header">
+            <h1 class="title">GORYO <span>ゴリョ</span></h1>
+            <p class="subtitle">Experimental Hybrid Unit</p>
+        </div>
+        <canvas id="goryo-canvas" width="600" height="600"></canvas>
+    </div>
+    <div class="controls">
+        <button onclick="handleAction('GORILLA_PUNCH')" class="action-btn bg-red">ゴリラパンチ</button>
+        <button onclick="handleAction('GOLDFISH_SPLASH')" class="action-btn bg-blue">金魚スプラッシュ</button>
+        <button onclick="handleAction('AQUA_FIST')" class="action-btn bg-cyan">アクアフィスト</button>
+        <button onclick="handleAction('TOUGH_GUARD')" class="action-btn bg-slate">タフガード</button>
+        <button onclick="handleAction('HEAL_MIST')" class="action-btn bg-green">ヒールミスト</button>
+        <button onclick="handleAction('POWER_UP')" class="action-btn bg-orange">パワーアップ</button>
+        <button onclick="handleAction('DAMAGE')" class="action-btn bg-rose">ダメージ</button>
+    </div>
+    <footer>
+        <span>System Status: Active</span>
+        <div class="status-dot"></div>
+        <span>Neural Sync: 98%</span>
+    </footer>
+    <script>
+        class GoryoCharacter {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                this.currentAnimation = 'IDLE';
+                this.animationQueue = [];
+                this.animationStartTime = Date.now();
+                this.animationDuration = 0;
+                this.bodyPos = { x: 0, y: 0, rotation: 0, scale: 1 };
+                this.headPos = { x: 0, y: 0, rotation: 0, scale: 1 };
+                this.leftArm = { x: -60, y: 20, rotation: 0, scale: 1 };
+                this.rightArm = { x: 60, y: 20, rotation: 0, scale: 1 };
+                this.leftLeg = { x: -40, y: 100, rotation: 0 };
+                this.rightLeg = { x: 40, y: 100, rotation: 0 };
+                this.finRotation = 0;
+                this.eyeScale = 1;
+                this.mouthOpen = 0;
+                this.particles = [];
+                this.screenShake = { x: 0, y: 0 };
+                this.flashColor = null;
+                this.auraAlpha = 0;
+                this.shieldAlpha = 0;
+                this.nextScratchTime = Date.now() + 10000 + Math.random() * 5000;
+                this.nextChestBeatTime = Date.now() + 20000 + Math.random() * 10000;
+                this.playAnimation('CHEST_BEAT');
+            }
+            playAnimation(type) {
+                if (this.currentAnimation === 'IDLE') this.startAnimation(type);
+                else this.animationQueue.push(type);
+            }
+            startAnimation(type) {
+                this.currentAnimation = type;
+                this.animationStartTime = Date.now();
+                const durations = { CHEST_BEAT:1200, GORILLA_PUNCH:800, GOLDFISH_SPLASH:1000, AQUA_FIST:800, TOUGH_GUARD:1500, HEAL_MIST:2000, POWER_UP:1000, DAMAGE:600 };
+                this.animationDuration = durations[type] || 0;
+            }
+            update() {
+                const now = Date.now();
+                const elapsed = now - this.animationStartTime;
+                const progress = Math.min(elapsed / this.animationDuration, 1);
+                this.screenShake = { x: 0, y: 0 };
+                this.flashColor = null;
+                this.auraAlpha = Math.max(0, this.auraAlpha - 0.02);
+                this.shieldAlpha = Math.max(0, this.shieldAlpha - 0.05);
+                const idleSway = Math.sin(now / 1000) * 0.05;
+                const idleBob = Math.sin(now / 500) * 5;
+                this.bodyPos.rotation = idleSway;
+                this.bodyPos.y = idleBob;
+                this.bodyPos.scale = 1;
+                this.headPos.rotation = 0;
+                this.finRotation = Math.sin(now / 300) * 0.2;
+                this.eyeScale = 1;
+                this.mouthOpen = 0.1 + Math.sin(now / 800) * 0.1;
+                this.leftArm.rotation = 0.2 + Math.sin(now / 1000) * 0.1;
+                this.rightArm.rotation = -0.2 - Math.sin(now / 1000) * 0.1;
+                this.leftArm.x = -60; this.leftArm.y = 20;
+                this.rightArm.x = 60; this.rightArm.y = 20;
+                this.leftArm.scale = 1; this.rightArm.scale = 1;
+                if (this.currentAnimation === 'IDLE') {
+                    if (now > this.nextScratchTime) {
+                        const scratchElapsed = now - (this.nextScratchTime - 2000);
+                        if (scratchElapsed > 0 && scratchElapsed < 2000) {
+                            const p = scratchElapsed / 2000;
+                            if (p < 0.2) { this.rightArm.rotation = -2.5 * (p / 0.2); this.rightArm.y = 20 - 40 * (p / 0.2); }
+                            else if (p < 0.8) { this.rightArm.rotation = -2.5 + Math.sin(now / 100) * 0.2; this.rightArm.y = -20; }
+                            else { this.rightArm.rotation = -2.5 * (1 - (p - 0.8) / 0.2); this.rightArm.y = -20 + 40 * ((p - 0.8) / 0.2); }
+                        } else if (scratchElapsed >= 2000) {
+                            this.nextScratchTime = now + 10000 + Math.random() * 5000;
+                        }
+                    }
+                    if (now > this.nextChestBeatTime) {
+                        this.playAnimation('CHEST_BEAT');
+                        this.nextChestBeatTime = now + 20000 + Math.random() * 10000;
+                    }
+                } else {
+                    this.handleAnimation(this.currentAnimation, progress);
+                    if (progress >= 1) {
+                        if (this.animationQueue.length > 0) this.startAnimation(this.animationQueue.shift());
+                        else this.currentAnimation = 'IDLE';
+                    }
+                }
+                this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.life--; return p.life > 0; });
+            }
+            handleAnimation(type, p) {
+                switch (type) {
+                    case 'CHEST_BEAT':
+                        const beat = Math.floor(p * 8);
+                        const arm = beat % 2 === 0 ? this.leftArm : this.rightArm;
+                        const phase = (p * 8) % 1;
+                        arm.rotation = beat % 2 === 0 ? 1.5 : -1.5;
+                        if (phase > 0.5) { arm.rotation = beat % 2 === 0 ? 0.5 : -0.5; this.screenShake = { x: (Math.random() - 0.5) * 10, y: (Math.random() - 0.5) * 10 }; }
+                        break;
+                    case 'GORILLA_PUNCH':
+                        if (p < 0.3) { this.bodyPos.y += p * 50; this.rightArm.rotation = -0.5; }
+                        else if (p < 0.6) { const pp = (p - 0.3) / 0.3; this.rightArm.x = 60 + pp * 100; this.rightArm.scale = 1 + pp * 0.5; this.rightArm.rotation = -1.5; }
+                        else { const rp = (p - 0.6) / 0.4; this.rightArm.x = 160 - rp * 100; this.rightArm.scale = 1.5 - rp * 0.5; }
+                        break;
+                    case 'GOLDFISH_SPLASH':
+                        this.headPos.rotation = Math.sin(p * Math.PI * 2) * 0.5;
+                        if (p > 0.3 && p < 0.7 && Math.random() > 0.5) this.spawnParticles(this.width / 2, this.height / 2 - 100, 'cyan', 5);
+                        break;
+                    case 'AQUA_FIST':
+                        this.auraAlpha = 0.5;
+                        if (p < 0.3) this.leftArm.rotation = 0.5;
+                        else if (p < 0.6) { const pp = (p - 0.3) / 0.3; this.leftArm.x = -60 - pp * 100; this.leftArm.scale = 1 + pp * 0.5; if (pp > 0.5) this.spawnParticles(this.width / 2 - 150, this.height / 2, 'blue', 3); }
+                        break;
+                    case 'TOUGH_GUARD':
+                        this.shieldAlpha = Math.sin(p * Math.PI) * 0.6;
+                        this.leftArm.rotation = -1.2; this.rightArm.rotation = 1.2;
+                        this.leftArm.x = -30; this.rightArm.x = 30;
+                        break;
+                    case 'HEAL_MIST':
+                        if (Math.random() > 0.7) this.spawnParticles(this.width / 2 + (Math.random() - 0.5) * 200, this.height / 2 + 100, '#4ade80', 2, -2);
+                        this.mouthOpen = 0.3;
+                        break;
+                    case 'POWER_UP':
+                        this.auraAlpha = Math.sin(p * Math.PI) * 0.8;
+                        this.leftArm.scale = 1.2; this.rightArm.scale = 1.2; this.bodyPos.scale = 1.05;
+                        break;
+                    case 'DAMAGE':
+                        this.flashColor = 'rgba(255, 0, 0, 0.3)';
+                        this.bodyPos.x = -Math.sin(p * Math.PI) * 50;
+                        this.eyeScale = 0.1; this.headPos.rotation = 0.3;
+                        break;
+                }
+            }
+            spawnParticles(x, y, color, count, vyBase = 0) {
+                for (let i = 0; i < count; i++) {
+                    this.particles.push({ x, y, vx: (Math.random() - 0.5) * 10, vy: vyBase + (Math.random() - 0.5) * 10, life: 30 + Math.random() * 20, maxLife: 50, color, size: 2 + Math.random() * 5 });
+                }
+            }
+            draw() {
+                this.update();
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+                ctx.save();
+                ctx.translate(this.width / 2 + this.screenShake.x, this.height / 2 + this.screenShake.y);
+                if (this.auraAlpha > 0) {
+                    ctx.save(); ctx.globalAlpha = this.auraAlpha; ctx.shadowBlur = 30;
+                    ctx.shadowColor = this.currentAnimation === 'POWER_UP' ? 'orange' : 'cyan';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                    ctx.beginPath(); ctx.ellipse(0, 0, 150, 200, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                }
+                ctx.save();
+                ctx.translate(this.bodyPos.x, this.bodyPos.y);
+                ctx.rotate(this.bodyPos.rotation);
+                ctx.scale(this.bodyPos.scale, this.bodyPos.scale);
+                this.drawLeg(this.leftLeg.x, this.leftLeg.y, this.leftLeg.rotation);
+                this.drawLeg(this.rightLeg.x, this.rightLeg.y, this.rightLeg.rotation);
+                ctx.fillStyle = '#333'; ctx.beginPath(); ctx.roundRect(-80, -60, 160, 180, 40); ctx.fill();
+                ctx.fillStyle = '#444'; ctx.beginPath(); ctx.ellipse(0, 20, 50, 60, 0, 0, Math.PI * 2); ctx.fill();
+                this.drawArm(this.leftArm.x, this.leftArm.y, this.leftArm.rotation, this.leftArm.scale, true);
+                this.drawArm(this.rightArm.x, this.rightArm.y, this.rightArm.rotation, this.rightArm.scale, false);
+                ctx.save(); ctx.translate(0, -80); ctx.rotate(this.headPos.rotation);
+                ctx.fillStyle = '#ff6b00'; ctx.save(); ctx.translate(0, -60); ctx.rotate(this.finRotation);
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-20, -30); ctx.lineTo(20, -30); ctx.closePath(); ctx.fill(); ctx.restore();
+                ctx.fillStyle = '#ff4500'; ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.ellipse(-25, -10, 15, 15 * this.eyeScale, 0, 0, Math.PI * 2); ctx.ellipse(25, -10, 15, 15 * this.eyeScale, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(-25, -10, 7 * this.eyeScale, 0, Math.PI * 2); ctx.arc(25, -10, 7 * this.eyeScale, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#800'; ctx.beginPath(); ctx.ellipse(0, 25, 10, 10 * this.mouthOpen, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.restore(); ctx.restore();
+                if (this.shieldAlpha > 0) {
+                    ctx.save(); ctx.globalAlpha = this.shieldAlpha; ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 10;
+                    ctx.beginPath(); ctx.arc(0, 0, 220, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+                }
+                if (this.currentAnimation === 'GORILLA_PUNCH' || this.currentAnimation === 'AQUA_FIST') {
+                    const p = (Date.now() - this.animationStartTime) / this.animationDuration;
+                    if (p > 0.4 && p < 0.7) {
+                        const swP = (p - 0.4) / 0.3;
+                        ctx.save(); ctx.strokeStyle = this.currentAnimation === 'AQUA_FIST' ? 'cyan' : 'white';
+                        ctx.globalAlpha = 1 - swP; ctx.lineWidth = 2;
+                        ctx.beginPath(); const x = this.currentAnimation === 'AQUA_FIST' ? -160 : 160;
+                        ctx.arc(x, 0, swP * 100, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+                    }
+                }
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life / p.maxLife; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x - this.width/2, p.y - this.height/2, p.size, 0, Math.PI * 2); ctx.fill();
+                });
+                ctx.restore();
+                if (this.flashColor) { ctx.fillStyle = this.flashColor; ctx.fillRect(0, 0, this.width, this.height); }
+            }
+            drawArm(x, y, rotation, scale, isLeft) {
+                const ctx = this.ctx;
+                ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.scale(scale, scale); ctx.fillStyle = '#222';
+                ctx.beginPath(); ctx.roundRect(isLeft ? -40 : 0, -15, 40, 30, 10); ctx.fill();
+                ctx.translate(isLeft ? -30 : 30, 0); ctx.beginPath(); ctx.roundRect(isLeft ? -40 : 0, -20, 40, 40, 15); ctx.fill();
+                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(isLeft ? -35 : 35, 0, 25, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            }
+            drawLeg(x, y, rotation) {
+                const ctx = this.ctx;
+                ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.fillStyle = '#222';
+                ctx.beginPath(); ctx.roundRect(-20, 0, 40, 60, 15); ctx.fill(); ctx.restore();
+            }
+        }
+        const goryo = new GoryoCharacter('goryo-canvas');
+        function handleAction(type) { goryo.playAnimation(type); }
+        function animate() { goryo.draw(); requestAnimationFrame(animate); }
+        animate();
+    </script>
+</body>
+</html>

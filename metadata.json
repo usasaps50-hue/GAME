@@ -1,0 +1,6 @@
+{
+  "name": "Monster Duel: Tactics",
+  "description": "A 1v1 turn-based monster battle game with resource management and hand-based skills.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
