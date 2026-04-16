@@ -6,21 +6,26 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import {
-  Users,
-  Sword,
   ShoppingBag,
+  Users,
   Globe,
-  Settings,
-  Trophy,
-  Coins,
-  Star,
-  MessageCircle,
-  Heart,
-  Zap,
   Wifi,
-  Menu as MenuIcon
+  Heart,
+  Coins,
+  Zap,
+  Sword,
+  Flame,
+  Shield,
+  Skull,
+  Droplets,
+  Mountain,
+  Fish
 } from 'lucide-react';
 import { Monster } from '../types';
+
+const ICON_MAP: Record<string, any> = {
+  Flame, Shield, Zap, Sword, Heart, Skull, Droplets, Mountain, Fish
+};
 
 interface MainMenuProps {
   onStartBattle: () => void;
@@ -34,142 +39,126 @@ interface MainMenuProps {
   winStreak: number;
 }
 
-export default function MainMenu({ onStartBattle, onOpenCharacters, onOpenShop, onOpenWorld, onOpenOnline, onStartRandomBattle, equippedMonster, hearts, winStreak }: MainMenuProps) {
+export default function MainMenu({
+  onStartBattle,
+  onOpenCharacters,
+  onOpenShop,
+  onOpenWorld,
+  onOpenOnline,
+  onStartRandomBattle,
+  equippedMonster,
+  hearts,
+  winStreak,
+}: MainMenuProps) {
+  const IconComponent = equippedMonster ? (ICON_MAP[equippedMonster.image] || Sword) : Sword;
+
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-blue-600 to-indigo-900 text-white flex flex-col font-sans overflow-hidden">
-      {/* Top Bar */}
+    <div className="fixed inset-0 bg-game-radial text-white flex flex-col font-sans overflow-hidden select-none">
+      {/* ドット背景 */}
+      <div
+        className="absolute inset-0 opacity-5 pointer-events-none"
+        style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+      />
+
+      {/* 上部バー */}
       <div className="p-4 flex items-center justify-between z-10">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-            <Heart size={16} className="text-red-500 fill-red-500" />
-            <span className="font-black text-sm">{hearts}</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full border-2 border-white/10 bg-black/40 font-bold backdrop-blur-md">
+            <Heart size={16} className="text-[#FF4D8D] fill-[#FF4D8D]" />
+            <span className="text-sm">{hearts}</span>
           </div>
-          <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-            <Coins size={16} className="text-yellow-400" />
-            <span className="font-black text-sm">5,000</span>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full border-2 border-white/10 bg-black/40 font-bold backdrop-blur-md">
+            <Coins size={16} className="text-[#FFF500]" />
+            <span className="text-sm">5,000</span>
           </div>
           {winStreak > 0 && (
-            <div className="flex items-center gap-2 bg-orange-500/50 backdrop-blur-md px-3 py-1 rounded-full border border-orange-400/30">
-              <Zap size={12} className="text-yellow-400 fill-yellow-400" />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-[#FF00E5]/40 bg-[#FF00E5]/20 backdrop-blur-md">
+              <Zap size={12} className="text-[#FFF500] fill-[#FFF500]" />
               <span className="text-[10px] font-black uppercase">{winStreak}連勝中!</span>
             </div>
           )}
         </div>
-        
-        <div className="flex items-center gap-3">
-          <button className="p-2 bg-black/30 backdrop-blur-md rounded-xl border border-white/10">
-            <MessageCircle size={24} />
-          </button>
-          <button className="p-2 bg-black/30 backdrop-blur-md rounded-xl border border-white/10">
-            <MenuIcon size={24} />
-          </button>
-        </div>
       </div>
 
-      {/* Main Character Display (Center) */}
-      <div className="flex-1 relative flex flex-col items-center justify-center">
-        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-          <div className="w-[800px] h-[800px] bg-white rounded-full blur-[100px]" />
+      {/* センター：キャラクター表示 */}
+      <div className="flex-1 relative flex items-center justify-center">
+        {/* 左サイドボタン */}
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10">
+          <SideButton icon={<ShoppingBag size={28} />} label="ショップ" color="border-[#FF00E5] text-[#FF00E5]" onClick={onOpenShop} />
+          <SideButton icon={<Users size={28} />} label="キャラ" color="border-[#00F0FF] text-[#00F0FF]" onClick={onOpenCharacters} />
+          <SideButton icon={<Globe size={28} />} label="ワールド" color="border-[#FFF500] text-[#FFF500]" onClick={onOpenWorld} />
+          <SideButton icon={<Wifi size={28} />} label="オンライン" color="border-[#00F0FF] text-[#00F0FF]" onClick={onOpenOnline} />
         </div>
 
+        {/* キャラクタープレビュー */}
         <motion.div
-          animate={{
-            y: [0, -15, 0],
-            rotate: [-1, 1, -1]
-          }}
-          transition={{
-            duration: 5,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="relative z-10"
+          animate={{ y: [0, -15, 0], rotate: [-1, 1, -1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+          className="relative z-10 flex flex-col items-center"
         >
           <div
-            className="w-64 h-64 rounded-full flex items-center justify-center border-4 border-white/10"
-            style={{ backgroundColor: equippedMonster ? `${equippedMonster.color}20` : 'rgba(255,255,255,0.05)' }}
+            className="w-64 h-64 rounded-full flex items-center justify-center"
+            style={{
+              background: equippedMonster
+                ? `radial-gradient(circle, ${equippedMonster.color}30, transparent)`
+                : 'radial-gradient(circle, rgba(0,240,255,0.08), transparent)',
+            }}
           >
-            <div className="text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.5)]">
-              {equippedMonster
-                ? <Sword size={180} style={{ color: equippedMonster.color }} />
-                : <Sword size={180} className="opacity-20" />
-              }
+            <div className="drop-shadow-glow">
+              <IconComponent
+                size={160}
+                style={{ color: equippedMonster?.color || '#00F0FF' }}
+              />
             </div>
           </div>
-        </motion.div>
+          <div className="absolute -bottom-6 w-40 h-8 bg-black/40 blur-xl rounded-full" />
 
-        <div className="mt-8 text-center z-10">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <Star size={16} className="text-yellow-400 fill-yellow-400" />
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter">
-              {equippedMonster ? equippedMonster.name : 'キャラクターなし'}
+          <div className="mt-10 text-center z-10">
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter drop-shadow-glow">
+              {equippedMonster?.name || 'キャラクターなし'}
             </h2>
-          </div>
-          <div className="bg-black/40 backdrop-blur-md px-6 py-1 rounded-full border border-white/10 inline-block">
-            <p className="text-xs font-bold uppercase tracking-widest opacity-80">
-              {equippedMonster ? 'パワー 11' : 'キャラクターを追加してください'}
+            <p className="text-xs font-bold text-[#00F0FF] uppercase tracking-widest mt-2 opacity-80">
+              {equippedMonster ? 'READY FOR BATTLE' : 'キャラクターを追加してください'}
             </p>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Bottom Controls (Brawl Stars Style) */}
-      <div className="p-6 flex items-end justify-between z-20">
-        {/* Left Side: Character, Shop, World */}
-        <div className="flex items-center gap-3">
-          <MenuButton 
-            icon={<Users size={24} />} 
-            label="キャラクター" 
-            color="bg-blue-500" 
-            onClick={onOpenCharacters} 
-          />
-          <MenuButton 
-            icon={<ShoppingBag size={24} />} 
-            label="ショップ" 
-            color="bg-yellow-500" 
-            onClick={onOpenShop} 
-          />
-          <MenuButton
-            icon={<Globe size={24} />}
-            label="ワールドバトル"
-            color="bg-green-500"
-            onClick={onOpenWorld}
-          />
-          <MenuButton
-            icon={<Wifi size={24} />}
-            label="オンライン"
-            color="bg-purple-500"
-            onClick={onOpenOnline}
-          />
-        </div>
-
-        {/* Right Side: Random Battle */}
-        <button
+      {/* 下部：バトルボタン */}
+      <div className="p-6 flex justify-end z-10">
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97, translateY: 3 }}
           onClick={onStartRandomBattle}
-          className="group relative"
+          className="px-16 py-6 rounded-2xl font-black text-3xl italic uppercase tracking-tighter text-[#442200] bg-gradient-to-b from-[#FFF500] to-[#FFA500] border-b-8 border-[#884400] shadow-2xl btn-pop-shadow"
         >
-          <div className="absolute inset-0 bg-yellow-400 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-          <div className="relative bg-gradient-to-b from-yellow-400 to-orange-600 px-12 py-6 rounded-3xl border-b-8 border-orange-800 shadow-2xl active:translate-y-1 active:border-b-4 transition-all">
-            <div className="flex flex-col items-center">
-              <span className="text-3xl font-black italic uppercase tracking-tighter text-white drop-shadow-md">バトル</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-orange-900 mt-1">オンライン対戦</span>
-            </div>
-          </div>
-        </button>
+          バトル
+        </motion.button>
       </div>
     </div>
   );
 }
 
-function MenuButton({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick: () => void }) {
+function SideButton({
+  icon,
+  label,
+  color,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  color: string;
+  onClick: () => void;
+}) {
   return (
-    <button 
+    <motion.button
+      whileHover={{ scale: 1.1, x: 5 }}
+      whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className="flex flex-col items-center gap-2 group"
+      className={`w-20 h-20 bg-bg-panel/80 backdrop-blur-md border-2 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-xl transition-all ${color}`}
     >
-      <div className={`w-16 h-16 ${color} rounded-2xl flex items-center justify-center border-b-4 border-black/20 shadow-lg group-active:translate-y-0.5 group-active:border-b-2 transition-all`}>
-        {icon}
-      </div>
-      <span className="text-[10px] font-black uppercase tracking-tighter text-white/80">{label}</span>
-    </button>
+      {icon}
+      <span className="font-black text-[10px] tracking-tighter">{label}</span>
+    </motion.button>
   );
 }
