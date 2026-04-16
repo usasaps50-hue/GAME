@@ -57,62 +57,11 @@ interface GameMode {
   icon: string;
 }
 
-const INITIAL_CHARACTERS: Character[] = [
-  {
-    id: 'char1',
-    name: 'Buns Master',
-    rarity: 'Common',
-    description: 'Throws explosive sesame seeds at enemies.',
-    history: 'A former chef who decided that burgers were meant for more than just eating.',
-    level: 3,
-    hearts: 120,
-    hp: 3200,
-    attack: 800,
-    ultimate: 1500,
-    skins: ['skin1_default', 'skin1_golden'],
-    isHypercharge: true,
-  },
-  {
-    id: 'char2',
-    name: 'Lettuce Leaf',
-    rarity: 'Rare',
-    description: 'Heals allies with fresh dew drops.',
-    history: 'Born in a magical garden, she protects all things green and crunchy.',
-    level: 1,
-    hearts: 45,
-    hp: 2800,
-    attack: 400,
-    ultimate: 2000,
-    skins: ['skin2_default'],
-  },
-  {
-    id: 'char3',
-    name: 'Patty Puncher',
-    rarity: 'Epic',
-    description: 'Heavy hitter with a meat-fisted punch.',
-    history: 'The strongest patty in the grill, trained in the secret art of Sizzle.',
-    level: 5,
-    hearts: 450,
-    hp: 5000,
-    attack: 1200,
-    ultimate: 3000,
-    skins: ['skin3_default', 'skin3_mecha'],
-  },
-];
+const INITIAL_CHARACTERS: Character[] = [];
 
-const SKINS: Skin[] = [
-  { id: 'skin1_default', charId: 'char1', name: 'Default', priceBurgers: 0, priceHearts: 0, image: '🍔' },
-  { id: 'skin1_golden', charId: 'char1', name: 'Golden Bun', priceBurgers: 500, priceHearts: 50, timeLeft: '2d 4h', image: '✨🍔' },
-  { id: 'skin2_default', charId: 'char2', name: 'Default', priceBurgers: 0, priceHearts: 0, image: '🥬' },
-  { id: 'skin3_default', charId: 'char3', name: 'Default', priceBurgers: 0, priceHearts: 0, image: '🥩' },
-  { id: 'skin3_mecha', charId: 'char3', name: 'Mecha Patty', priceBurgers: 1200, priceHearts: 150, timeLeft: '12h', image: '🤖🥩' },
-];
+const SKINS: Skin[] = [];
 
-const MODES: GameMode[] = [
-  { id: 'solo', name: 'Solo Battle', description: 'Be the last burger standing!', icon: '⚔️' },
-  { id: 'team', name: 'Team Feast', description: '3v3 battle for the ultimate grill.', icon: '🤝' },
-  { id: 'boss', name: 'Boss Grill', description: 'Defeat the giant spatula!', icon: '🔥' },
-];
+const MODES: GameMode[] = [];
 
 // --- Components ---
 
@@ -146,13 +95,13 @@ const CurrencyBadge = ({ icon, value, className = '' }: { icon: string, value: s
 
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>('home');
-  const [selectedCharId, setSelectedCharId] = useState<string>('char1');
-  const [selectedModeId, setSelectedModeId] = useState<string>('solo');
+  const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
+  const [selectedModeId, setSelectedModeId] = useState<string | null>(null);
   const [burgers, setBurgers] = useState(100);
   const [hearts, setHearts] = useState(10);
 
-  const selectedChar = useMemo(() => INITIAL_CHARACTERS.find(c => c.id === selectedCharId)!, [selectedCharId]);
-  const selectedMode = useMemo(() => MODES.find(m => m.id === selectedModeId)!, [selectedModeId]);
+  const selectedChar = useMemo(() => INITIAL_CHARACTERS.find(c => c.id === selectedCharId) ?? null, [selectedCharId]);
+  const selectedMode = useMemo(() => MODES.find(m => m.id === selectedModeId) ?? null, [selectedModeId]);
 
   const goTo = (screen: Screen) => setActiveScreen(screen);
 
@@ -262,7 +211,7 @@ function HomeScreen({ onGoTo, burgers, hearts, selectedChar, selectedMode, selec
           className="relative z-10"
         >
           <div className="text-9xl drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)]">
-            {SKINS.find(s => s.charId === selectedChar.id)?.image || '🍔'}
+            {selectedChar ? (SKINS.find(s => s.charId === selectedChar.id)?.image || '❓') : '❓'}
           </div>
           <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-black/40 blur-xl rounded-full" />
         </motion.div>
@@ -289,27 +238,35 @@ function HomeScreen({ onGoTo, burgers, hearts, selectedChar, selectedMode, selec
         </div>
 
         <div className="flex items-center gap-6 bg-bg-panel/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md shadow-2xl">
-          <div className="flex flex-col">
-            <div className="text-xs font-bold text-accent-cyan uppercase tracking-widest mb-1">Current Mode</div>
-            <div className="text-2xl font-black flex items-center gap-2">
-              {selectedMode.icon} {selectedMode.name}
+          {MODES.length > 0 ? (
+            <>
+              <div className="flex flex-col">
+                <div className="text-xs font-bold text-accent-cyan uppercase tracking-widest mb-1">Current Mode</div>
+                <div className="text-2xl font-black flex items-center gap-2">
+                  {selectedMode?.icon} {selectedMode?.name}
+                </div>
+                <div className="text-xs opacity-60 max-w-[200px]">{selectedMode?.description}</div>
+              </div>
+              <div className="flex gap-2">
+                {MODES.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => onSelectMode(m.id)}
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl transition-all border-2 ${selectedModeId === m.id ? 'bg-accent-cyan border-white text-bg-deep scale-110 shadow-[0_0_15px_rgba(0,240,255,0.5)]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                  >
+                    {m.icon}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col">
+              <div className="text-xs font-bold text-accent-cyan uppercase tracking-widest mb-1">ゲームモード</div>
+              <div className="text-lg font-black opacity-40">準備中...</div>
             </div>
-            <div className="text-xs opacity-60 max-w-[200px]">{selectedMode.description}</div>
-          </div>
-          
-          <div className="flex gap-2">
-            {MODES.map(m => (
-              <button 
-                key={m.id}
-                onClick={() => onSelectMode(m.id)}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl transition-all border-2 ${selectedModeId === m.id ? 'bg-accent-cyan border-white text-bg-deep scale-110 shadow-[0_0_15px_rgba(0,240,255,0.5)]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
-              >
-                {m.icon}
-              </button>
-            ))}
-          </div>
+          )}
 
-          <Button 
+          <Button
             onClick={() => onGoTo('matching')}
             variant="play"
             className="!px-12 !py-6 !text-3xl !rounded-2xl"
@@ -681,7 +638,7 @@ function ResultScreen({ onHome, character }: any) {
             transition={{ duration: 0.5, repeat: Infinity }}
             className="text-[180px] drop-shadow-glow"
           >
-            {SKINS.find(s => s.charId === character.id)?.image || '🍔'}
+            {character ? (SKINS.find(s => s.charId === character.id)?.image || '❓') : '❓'}
           </motion.div>
 
           <div className="flex flex-col gap-4">
