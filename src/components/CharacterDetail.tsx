@@ -103,7 +103,7 @@ export default function CharacterDetail({ monster, onBack, onEquip, onUnequip, o
               <h4 className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">ステータス</h4>
               <div className="space-y-2">
                 <StatBar label="HP" value={monster.hp} max={monster.maxHp} color="bg-green-500" />
-                <StatBar label="ENERGY" value={monster.energy} max={10} color="bg-yellow-500" />
+                <StatBar label="エナジー" value={monster.energy} max={10} color="bg-yellow-500" />
               </div>
             </section>
 
@@ -125,7 +125,7 @@ export default function CharacterDetail({ monster, onBack, onEquip, onUnequip, o
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-bold">{skill.name}</p>
-                        <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded font-black">COST {skill.cost}</span>
+                        <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded font-black">コスト {skill.cost}</span>
                       </div>
                       <p className="text-[10px] opacity-50 mt-1">{skill.description}</p>
                     </div>

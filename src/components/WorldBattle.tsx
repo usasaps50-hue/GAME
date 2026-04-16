@@ -45,7 +45,7 @@ export default function WorldBattle({ onBack, onStartStage, stages }: WorldBattl
         </button>
         <div className="text-center">
           <h2 className="text-lg font-black italic uppercase tracking-tighter">ワールドバトル</h2>
-          <p className="text-[10px] font-bold opacity-60">DESERT WORLD - 50 COURSES</p>
+          <p className="text-[10px] font-bold opacity-60">砂漠ワールド - 50コース</p>
         </div>
         <div className="flex items-center gap-2 bg-black/5 px-3 py-1 rounded-full">
           <Trophy size={14} className="text-yellow-600" />

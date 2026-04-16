@@ -5,16 +5,13 @@
 
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { 
-  ShoppingBag, 
-  ChevronLeft, 
-  Lock, 
-  User, 
-  Plus,
-  Star,
-  Tag
+import {
+  ShoppingBag,
+  ChevronLeft,
+  Lock,
+  User,
+  Plus
 } from 'lucide-react';
-import { MONSTERS } from '../constants';
 
 interface ShopProps {
   onBack: () => void;
@@ -76,7 +73,7 @@ export default function Shop({ onBack, onAddReward }: ShopProps) {
         ) : (
           <div className="flex items-center gap-2 bg-green-500/20 text-green-400 px-3 py-1 rounded-full border border-green-500/30">
             <User size={14} />
-            <span className="text-[10px] font-black uppercase">Admin: system</span>
+            <span className="text-[10px] font-black uppercase">管理者: system</span>
           </div>
         )}
       </div>
@@ -103,40 +100,14 @@ export default function Shop({ onBack, onAddReward }: ShopProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          {/* Featured Character */}
-          <div className="col-span-2 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-6 flex items-center justify-between shadow-xl">
-            <div>
-              <div className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block mb-2">期間限定</div>
-              <h3 className="text-2xl font-black italic uppercase tracking-tighter">パイロン: 蒼炎</h3>
-              <p className="text-xs opacity-80 mt-1">限定スキン付きパック</p>
-              <button className="mt-4 px-6 py-2 bg-white text-black rounded-xl font-black text-xs uppercase">¥1,200</button>
-            </div>
-            <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md">
-              <Star size={48} className="text-white" />
-            </div>
+        <div className="flex flex-col items-center justify-center py-24 gap-6 text-center">
+          <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center">
+            <ShoppingBag size={40} className="opacity-20" />
           </div>
-
-          {/* Regular Items */}
-          {MONSTERS.map(monster => (
-            <div key={monster.id} className="bg-neutral-800 rounded-3xl p-4 border border-white/5 flex flex-col gap-3">
-              <div className="aspect-square bg-neutral-700 rounded-2xl flex items-center justify-center relative overflow-hidden">
-                <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md p-1.5 rounded-lg">
-                  <Tag size={12} className="text-yellow-400" />
-                </div>
-                <div style={{ color: monster.color }}>
-                  <Star size={48} />
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold">{monster.name}</p>
-                <p className="text-[10px] opacity-50">レアリティ: スーパーレア</p>
-              </div>
-              <button className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-xl font-black text-[10px] uppercase transition-all">
-                500 エメラルド
-              </button>
-            </div>
-          ))}
+          <div>
+            <h3 className="text-xl font-black opacity-40">準備中</h3>
+            <p className="text-xs opacity-30 mt-2">もうすぐアイテムが追加されます</p>
+          </div>
         </div>
       </div>
 

@@ -14,7 +14,22 @@
       "mcp__supabase__apply_migration",
       "mcp__supabase__execute_sql",
       "Bash(npm uninstall:*)",
-      "mcp__github__create_repository"
+      "mcp__github__create_repository",
+      "Bash(curl -s \"https://api.github.com/repos/usasaps50-hue/GAME/actions/runs?per_page=5\")",
+      "Bash(python3 -c \"import sys,json; runs=json.load\\(sys.stdin\\).get\\('workflow_runs',[]\\); [print\\(r['name'], r['status'], r['conclusion'], r['html_url']\\) for r in runs]\")",
+      "Bash(curl -s \"https://api.github.com/repos/usasaps50-hue/GAME/actions/runs?per_page=3\")",
+      "Bash(curl -s \"https://api.github.com/repos/usasaps50-hue/GAME/actions/runs/24447842405/jobs\")",
+      "mcp__github__list_commits",
+      "Bash(gh run:*)",
+      "WebFetch(domain:usasaps50-hue.github.io)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const p='src/components/BattleScreen.tsx'; let c=fs.readFileSync\\(p,'utf8'\\); const b=\\(c.match\\(/shake\\\\\\('enemy'\\\\\\)/g\\)||[]\\).length; c=c.replace\\(/\\\\r?\\\\n[ \\\\t]+shake\\\\\\('enemy'\\\\\\);/g,''\\); const a=\\(c.match\\(/shake\\\\\\('enemy'\\\\\\)/g\\)||[]\\).length; fs.writeFileSync\\(p,c\\); console.log\\('removed',b-a,'remaining',a\\);\")",
+      "Bash(grep -rn \"className.*text\\\\|placeholder\\\\|alert\\\\|setStatus\\\\|setError\\\\|logs.push\\\\|<h\\\\|<p\\\\|<span\" /c/Users/user/Desktop/GAME/src/components/*.tsx)",
+      "mcp__github__get_file_contents",
+      "Bash(git remote:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
     ]
   }
 }
