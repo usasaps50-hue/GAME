@@ -60,6 +60,24 @@ interface GameMode {
 
 const INITIAL_CHARACTERS: Character[] = [
   {
+    id: 'char_jamie',
+    name: 'ジャミー',
+    rarity: 'Common',
+    description: 'ジャムを投げて敵の動きを鈍らせるサポーター。弾が大きく当てやすい。',
+    history: 'どこからともなく現れたジャム好きな不思議な生き物。投げたジャムが敵にまとわりつき、動きを遅くする。初心者でも扱いやすい。',
+    level: 1, hearts: 0, hp: 4000, attack: 1500, ultimate: 0,
+    skins: ['skin_jamie_default'],
+  },
+  {
+    id: 'char_fork',
+    name: 'フォーク親父',
+    rarity: 'Epic',
+    description: '密着するほど高火力を発揮する近距離ブルーザー。ウルトは壁に刺さるリスクあり。',
+    history: '元コックの頑固な老人。フォークを武器に近接戦を得意とし、串刺しチャージで敵を一撃する。使いこなすのは難しいが、当たれば誰でも倒せる。',
+    level: 1, hearts: 0, hp: 5500, attack: 4000, ultimate: 0,
+    skins: ['skin_fork_default'],
+  },
+  {
     id: 'char_pochi',
     name: 'ポチっとな',
     rarity: 'Epic',
@@ -88,6 +106,20 @@ const INITIAL_CHARACTERS: Character[] = [
 ];
 
 const SKINS: Skin[] = [
+  {
+    id: 'skin_jamie_default',
+    charId: 'char_jamie',
+    name: 'デフォルト',
+    priceBurgers: 0, priceHearts: 0,
+    image: '🫐',
+  },
+  {
+    id: 'skin_fork_default',
+    charId: 'char_fork',
+    name: 'デフォルト',
+    priceBurgers: 0, priceHearts: 0,
+    image: '🍴',
+  },
   {
     id: 'skin_pochi_default',
     charId: 'char_pochi',
