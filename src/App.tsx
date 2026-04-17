@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import BattleScreen from './BattleScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Settings, 
@@ -23,7 +24,7 @@ import {
 
 // --- Types & Data ---
 
-type Screen = 'home' | 'shop' | 'characters' | 'detail' | 'matching' | 'result';
+type Screen = 'home' | 'shop' | 'characters' | 'detail' | 'matching' | 'result' | 'battle';
 
 interface Character {
   id: string;
@@ -57,9 +58,53 @@ interface GameMode {
   icon: string;
 }
 
-const INITIAL_CHARACTERS: Character[] = [];
+const INITIAL_CHARACTERS: Character[] = [
+  {
+    id: 'char_pochi',
+    name: 'ポチっとな',
+    rarity: 'Epic',
+    description: 'トースターを背負った犬型タンク。時間が経つほど炎の力が増大する。',
+    history: '廃工場で生まれたトースター犬。バトルを重ねるたびに内部温度が上昇し、最高温度では敵をやけど状態にする。',
+    level: 1,
+    hearts: 0,
+    hp: 6000,
+    attack: 1000,
+    ultimate: 0,
+    skins: ['skin_pochi_default'],
+  },
+  {
+    id: 'char_saito',
+    name: 'ギャンブラー斎藤',
+    rarity: 'Legendary',
+    description: 'HPが下がるほど強くなるギャンブル系ウルフ。期待値を操る男。',
+    history: '裏カジノで名を馳せたオオカミ。傷つくほどに賭けは大きくなり、クライマックスで全てをかける。',
+    level: 1,
+    hearts: 0,
+    hp: 4300,
+    attack: 1000,
+    ultimate: 0,
+    skins: ['skin_saito_default'],
+  },
+];
 
-const SKINS: Skin[] = [];
+const SKINS: Skin[] = [
+  {
+    id: 'skin_pochi_default',
+    charId: 'char_pochi',
+    name: 'デフォルト',
+    priceBurgers: 0,
+    priceHearts: 0,
+    image: '🐕',
+  },
+  {
+    id: 'skin_saito_default',
+    charId: 'char_saito',
+    name: 'デフォルト',
+    priceBurgers: 0,
+    priceHearts: 0,
+    image: '🐺',
+  },
+];
 
 const MODES: GameMode[] = [];
 
@@ -95,7 +140,9 @@ const CurrencyBadge = ({ icon, value, className = '' }: { icon: string, value: s
 
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>('home');
-  const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
+  const [selectedCharId, setSelectedCharId] = useState<string | null>(
+    INITIAL_CHARACTERS.length > 0 ? INITIAL_CHARACTERS[0].id : null
+  );
   const [selectedModeId, setSelectedModeId] = useState<string | null>(null);
   const [burgers, setBurgers] = useState(100);
   const [hearts, setHearts] = useState(10);
@@ -152,10 +199,18 @@ export default function App() {
           />
         )}
         {activeScreen === 'result' && (
-          <ResultScreen 
-            key="result" 
-            onHome={() => goTo('home')} 
+          <ResultScreen
+            key="result"
+            onHome={() => goTo('home')}
             character={selectedChar}
+          />
+        )}
+        {activeScreen === 'battle' && selectedChar && (
+          <BattleScreen
+            key="battle"
+            charId={selectedChar.id}
+            level={selectedChar.level}
+            onFinish={(won) => goTo(won ? 'result' : 'home')}
           />
         )}
       </AnimatePresence>
@@ -263,7 +318,7 @@ function HomeScreen({ onGoTo, burgers, hearts, selectedChar, selectedMode, selec
           )}
 
           <Button
-            onClick={() => onGoTo('matching')}
+            onClick={() => onGoTo('battle')}
             variant="play"
             className="!px-12 !py-6 !text-3xl !rounded-2xl"
           >
