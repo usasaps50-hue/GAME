@@ -667,14 +667,11 @@ const CHAR_EMOJI: Record<string, string> = { char_pochi: '🐕', char_saito: '�
 const CHAR_LABEL: Record<string, string> = { char_pochi: 'ポチっとな', char_saito: 'ギャンブラー斎藤', char_jamie: 'ジャミー', char_fork: 'フォーク親父' };
 
 function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; onCancel: () => void; onMatched: (roomCode: string, remoteCharId: string) => void }) {
-  const [status, setStatus] = useState<'searching' | 'found'>('searching');
+  const [status, setStatus] = useState<'searching' | 'handshake' | 'found'>('searching');
   const [dots, setDots] = useState('');
-  const [liveCount, setLiveCount] = useState(0);
   const [opponent, setOpponent] = useState<{ charId: string; name: string } | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const matchedRef = useRef(false);
-  const myCodeRef = useRef(crypto.randomUUID());
-  const myName = useRef(`Player${Math.floor(Math.random() * 9000 + 1000)}`);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const iv = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
@@ -682,77 +679,90 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
   }, []);
 
   useEffect(() => {
-    const myCode = myCodeRef.current;
-    const ch = supabase.channel('random-matchmaking-v2', { config: { presence: { key: myCode } } });
+    const myCode = crypto.randomUUID();
+    const myName = `Player${Math.floor(Math.random() * 9000 + 1000)}`;
+    let done = false;
+    let broadcastIv: any = null;
+    let handshakeTimeout: any = null;
+
+    const ch = supabase.channel('lobby-broadcast-v3', { config: { broadcast: { self: false } } });
     channelRef.current = ch;
 
-    const pingInterval = { current: 0 as any };
+    ch.on('broadcast', { event: 'SEARCH' }, ({ payload }: any) => {
+      if (done || payload.code === myCode) return;
 
-    const countLive = () => {
-      const state = ch.presenceState();
-      const now = Date.now();
-      let alive = 0;
-      for (const k of Object.keys(state)) {
-        if (k === myCode) continue;
-        const d = (state[k] as any)?.[0];
-        if (d?.ping && now - d.ping < 8000) alive++;
-      }
-      setLiveCount(alive);
-    };
+      const sorted = [myCode, payload.code].sort();
+      const isHost = sorted[0] === myCode;
+      if (!isHost) return;
 
-    const tryMatch = () => {
-      if (matchedRef.current) return;
-      const state = ch.presenceState();
-      const now = Date.now();
-      const keys = Object.keys(state);
+      done = true;
+      clearInterval(broadcastIv);
+      setStatus('handshake');
 
-      const liveOpponents = keys.filter(k => {
-        if (k === myCode) return false;
-        const d = (state[k] as any)?.[0];
-        if (!d?.ping) return false;
-        return now - d.ping < 8000;
-      });
-
-      countLive();
-      if (liveOpponents.length === 0) return;
-
-      const opKey = liveOpponents[0];
-      const opData = (state[opKey] as any)?.[0];
-
-      matchedRef.current = true;
-      const sorted = [myCode, opKey].sort();
       const roomCode = `room_${sorted[0].slice(0, 8)}_${sorted[1].slice(0, 8)}`;
 
-      setOpponent({ charId: opData?.charId ?? 'char_pochi', name: opData?.name ?? 'Player' });
+      ch.send({
+        type: 'broadcast', event: 'INVITE',
+        payload: { from: myCode, to: payload.code, roomCode, charId, name: myName },
+      });
+
+      const onAccept = ({ payload: p }: any) => {
+        if (p.roomCode !== roomCode || p.from !== payload.code) return;
+        clearTimeout(handshakeTimeout);
+        setOpponent({ charId: p.charId, name: p.name });
+        setStatus('found');
+        setTimeout(() => {
+          ch.unsubscribe();
+          onMatched(roomCode, p.charId);
+        }, 3000);
+      };
+      ch.on('broadcast', { event: 'ACCEPT' }, onAccept);
+
+      handshakeTimeout = setTimeout(() => {
+        done = false;
+        setStatus('searching');
+        broadcastIv = setInterval(() => {
+          ch.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, charId, name: myName } });
+        }, 2000);
+      }, 5000);
+    });
+
+    ch.on('broadcast', { event: 'INVITE' }, ({ payload }: any) => {
+      if (done || payload.to !== myCode) return;
+      done = true;
+      clearInterval(broadcastIv);
+
+      setOpponent({ charId: payload.charId, name: payload.name });
       setStatus('found');
 
+      ch.send({
+        type: 'broadcast', event: 'ACCEPT',
+        payload: { from: myCode, roomCode: payload.roomCode, charId, name: myName },
+      });
+
       setTimeout(() => {
-        ch.untrack();
         ch.unsubscribe();
-        clearInterval(pingInterval.current);
-        onMatched(roomCode, opData?.charId ?? 'char_pochi');
+        onMatched(payload.roomCode, payload.charId);
       }, 3000);
-    };
+    });
 
-    ch.on('presence', { event: 'sync' }, tryMatch);
-    ch.on('presence', { event: 'join' }, tryMatch);
-
-    ch.subscribe(async (s) => {
+    ch.subscribe((s) => {
       if (s === 'SUBSCRIBED') {
-        await ch.track({ charId, name: myName.current, ping: Date.now() });
-        pingInterval.current = setInterval(async () => {
-          if (!matchedRef.current) {
-            await ch.track({ charId, name: myName.current, ping: Date.now() });
-          }
-        }, 3000);
+        ch.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, charId, name: myName } });
+        broadcastIv = setInterval(() => {
+          if (!done) ch.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, charId, name: myName } });
+        }, 2000);
       }
     });
 
-    return () => {
-      clearInterval(pingInterval.current);
-      ch.untrack();
+    cleanupRef.current = () => {
+      done = true;
+      clearInterval(broadcastIv);
+      clearTimeout(handshakeTimeout);
       ch.unsubscribe();
     };
+
+    return () => { cleanupRef.current?.(); };
   }, [charId, onMatched]);
 
   return (
@@ -770,7 +780,7 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
       </div>
 
       <div className="relative z-10 flex flex-col items-center">
-        {status === 'searching' ? (
+        {(status === 'searching' || status === 'handshake') ? (
           <>
             <motion.div
               animate={{ opacity: [0.5, 1, 0.5] }}
@@ -780,19 +790,12 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
               オンライン対戦{dots}
             </motion.div>
             <div className="text-lg font-bold text-emerald-400 mb-6 uppercase tracking-widest">
-              対戦相手を探しています
-            </div>
-
-            <div className="flex items-center gap-2 mb-10 px-5 py-2 rounded-full bg-black/40 border border-white/10">
-              <div className={`w-3 h-3 rounded-full ${liveCount > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
-              <span className="text-sm font-bold text-white/80">
-                接続中: <span className={liveCount > 0 ? 'text-emerald-400' : 'text-gray-400'}>{liveCount}人</span> が対戦待ち
-              </span>
+              {status === 'handshake' ? '接続確認中...' : '対戦相手を探しています'}
             </div>
 
             <div className="w-48 h-48 border-[10px] border-emerald-400 border-t-transparent rounded-full animate-spin mb-16 shadow-[0_0_30px_rgba(52,211,153,0.3)]" />
 
-            <Button variant="danger" onClick={() => { channelRef.current?.untrack(); channelRef.current?.unsubscribe(); onCancel(); }} className="!px-12 !py-4">
+            <Button variant="danger" onClick={() => { cleanupRef.current?.(); onCancel(); }} className="!px-12 !py-4">
               キャンセル
             </Button>
           </>
