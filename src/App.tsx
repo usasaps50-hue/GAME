@@ -663,10 +663,15 @@ function StatRow({ icon, label, value, color }: any) {
   );
 }
 
+const CHAR_EMOJI: Record<string, string> = { char_pochi: '🐕', char_saito: '🐺', char_jamie: '🫐', char_fork: '🍴' };
+const CHAR_LABEL: Record<string, string> = { char_pochi: 'ポチっとな', char_saito: 'ギャンブラー斎藤', char_jamie: 'ジャミー', char_fork: 'フォーク親父' };
+
 function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; onCancel: () => void; onMatched: (roomCode: string, remoteCharId: string) => void }) {
   const [status, setStatus] = useState<'searching' | 'found'>('searching');
   const [dots, setDots] = useState('');
+  const [opponent, setOpponent] = useState<{ charId: string; name: string } | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const matchedRef = useRef(false);
 
   useEffect(() => {
     const iv = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
@@ -677,34 +682,35 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
     const myCode = crypto.randomUUID();
     const myJoinedAt = Date.now();
     let ready = false;
-    let matched = false;
 
-    const ch = supabase.channel(`matchmaking-${myCode.slice(0, 8)}`, { config: { presence: { key: myCode } } });
+    const ch = supabase.channel('random-matchmaking', { config: { presence: { key: myCode } } });
     channelRef.current = ch;
 
     const tryMatch = () => {
-      if (!ready || matched) return;
+      if (!ready || matchedRef.current) return;
       const state = ch.presenceState();
       const keys = Object.keys(state);
       const opponents = keys.filter(k => {
         if (k === myCode) return false;
         const data = (state[k] as any)?.[0];
         if (!data?.joinedAt) return false;
-        return Math.abs(data.joinedAt - myJoinedAt) < 30000;
+        return Math.abs(data.joinedAt - myJoinedAt) < 60000;
       });
       if (opponents.length === 0) return;
-      matched = true;
+      matchedRef.current = true;
       const opponentKey = opponents[0];
       const opponentData = (state[opponentKey] as any)?.[0];
       const remoteCharId = opponentData?.charId ?? 'char_pochi';
+      const remoteName = opponentData?.name ?? 'Player';
       const sorted = [myCode, opponentKey].sort();
       const roomCode = `room_${sorted[0].slice(0, 8)}_${sorted[1].slice(0, 8)}`;
+      setOpponent({ charId: remoteCharId, name: remoteName });
       setStatus('found');
       setTimeout(() => {
         ch.untrack();
         ch.unsubscribe();
         onMatched(roomCode, remoteCharId);
-      }, 1200);
+      }, 3000);
     };
 
     ch.on('presence', { event: 'sync' }, tryMatch);
@@ -712,7 +718,7 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
 
     ch.subscribe(async (s) => {
       if (s === 'SUBSCRIBED') {
-        await ch.track({ charId, joinedAt: myJoinedAt });
+        await ch.track({ charId, joinedAt: myJoinedAt, name: `Player${Math.floor(Math.random() * 9000 + 1000)}` });
         setTimeout(() => { ready = true; tryMatch(); }, 2000);
       }
     });
@@ -752,22 +758,56 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
             </div>
             <div className="w-48 h-48 border-[10px] border-emerald-400 border-t-transparent rounded-full animate-spin mb-16 shadow-[0_0_30px_rgba(52,211,153,0.3)]" />
           </>
-        ) : (
-          <>
+        ) : opponent && (
+          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center">
+            <div className="text-4xl font-black text-emerald-400 mb-8 drop-shadow-glow">
+              マッチング完了！
+            </div>
+
+            <div className="flex items-center gap-8 mb-8">
+              {/* 自分 */}
+              <div className="flex flex-col items-center">
+                <div className="text-8xl mb-3 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
+                  {CHAR_EMOJI[charId] ?? '❓'}
+                </div>
+                <div className="text-lg font-black text-white">{CHAR_LABEL[charId] ?? '???'}</div>
+                <div className="text-xs font-bold text-accent-cyan uppercase tracking-widest mt-1">YOU</div>
+              </div>
+
+              {/* VS */}
+              <motion.div
+                animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="text-6xl font-black text-accent-pink drop-shadow-glow"
+              >
+                VS
+              </motion.div>
+
+              {/* 相手 */}
+              <div className="flex flex-col items-center">
+                <div className="text-8xl mb-3 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
+                  {CHAR_EMOJI[opponent.charId] ?? '❓'}
+                </div>
+                <div className="text-lg font-black text-white">{CHAR_LABEL[opponent.charId] ?? '???'}</div>
+                <div className="text-xs font-bold text-accent-yellow uppercase tracking-widest mt-1">{opponent.name}</div>
+              </div>
+            </div>
+
             <motion.div
-              initial={{ scale: 0.5 }}
-              animate={{ scale: 1 }}
-              className="text-6xl font-black italic mb-4 text-emerald-400 drop-shadow-glow"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+              className="text-sm font-bold text-white/60 uppercase tracking-widest"
             >
-              対戦相手が見つかりました！
+              バトル開始中...
             </motion.div>
-            <div className="text-8xl mb-8">⚔️</div>
-          </>
+          </motion.div>
         )}
 
-        <Button variant="danger" onClick={() => { channelRef.current?.unsubscribe(); onCancel(); }} className="!px-12 !py-4">
-          キャンセル
-        </Button>
+        {status === 'searching' && (
+          <Button variant="danger" onClick={() => { channelRef.current?.untrack(); channelRef.current?.unsubscribe(); onCancel(); }} className="!px-12 !py-4">
+            キャンセル
+          </Button>
+        )}
       </div>
     </motion.div>
   );
