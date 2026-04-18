@@ -675,34 +675,50 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
 
   useEffect(() => {
     const myCode = crypto.randomUUID();
-    const ch = supabase.channel('random-matchmaking', { config: { presence: { key: myCode } } });
+    const myJoinedAt = Date.now();
+    let ready = false;
+    let matched = false;
+
+    const ch = supabase.channel(`matchmaking-${myCode.slice(0, 8)}`, { config: { presence: { key: myCode } } });
     channelRef.current = ch;
 
-    ch.on('presence', { event: 'sync' }, () => {
+    const tryMatch = () => {
+      if (!ready || matched) return;
       const state = ch.presenceState();
       const keys = Object.keys(state);
-      if (keys.length >= 2) {
-        const sorted = keys.sort();
-        const isHost = sorted[0] === myCode;
-        const opponentKey = isHost ? sorted[1] : sorted[0];
-        const opponentData = (state[opponentKey] as any)?.[0];
-        const remoteCharId = opponentData?.charId ?? 'char_pochi';
-        const roomCode = `room_${sorted[0].slice(0, 8)}`;
-        setStatus('found');
-        setTimeout(() => {
-          ch.unsubscribe();
-          onMatched(roomCode, remoteCharId);
-        }, 1200);
-      }
-    });
+      const opponents = keys.filter(k => {
+        if (k === myCode) return false;
+        const data = (state[k] as any)?.[0];
+        if (!data?.joinedAt) return false;
+        return Math.abs(data.joinedAt - myJoinedAt) < 30000;
+      });
+      if (opponents.length === 0) return;
+      matched = true;
+      const opponentKey = opponents[0];
+      const opponentData = (state[opponentKey] as any)?.[0];
+      const remoteCharId = opponentData?.charId ?? 'char_pochi';
+      const sorted = [myCode, opponentKey].sort();
+      const roomCode = `room_${sorted[0].slice(0, 8)}_${sorted[1].slice(0, 8)}`;
+      setStatus('found');
+      setTimeout(() => {
+        ch.untrack();
+        ch.unsubscribe();
+        onMatched(roomCode, remoteCharId);
+      }, 1200);
+    };
+
+    ch.on('presence', { event: 'sync' }, tryMatch);
+    ch.on('presence', { event: 'join' }, tryMatch);
 
     ch.subscribe(async (s) => {
       if (s === 'SUBSCRIBED') {
-        await ch.track({ charId, joinedAt: Date.now() });
+        await ch.track({ charId, joinedAt: myJoinedAt });
+        setTimeout(() => { ready = true; tryMatch(); }, 2000);
       }
     });
 
     return () => {
+      ch.untrack();
       ch.unsubscribe();
     };
   }, [charId, onMatched]);
