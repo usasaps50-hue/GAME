@@ -666,11 +666,12 @@ function StatRow({ icon, label, value, color }: any) {
 const CHAR_EMOJI: Record<string, string> = { char_pochi: '🐕', char_saito: '🐺', char_jamie: '🫐', char_fork: '🍴' };
 const CHAR_LABEL: Record<string, string> = { char_pochi: 'ポチっとな', char_saito: 'ギャンブラー斎藤', char_jamie: 'ジャミー', char_fork: 'フォーク親父' };
 
+const TAB_ID = crypto.randomUUID();
+
 function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; onCancel: () => void; onMatched: (roomCode: string, remoteCharId: string) => void }) {
   const [status, setStatus] = useState<'searching' | 'handshake' | 'found'>('searching');
   const [dots, setDots] = useState('');
   const [opponent, setOpponent] = useState<{ charId: string; name: string } | null>(null);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -684,82 +685,88 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
     let done = false;
     let broadcastIv: any = null;
     let handshakeTimeout: any = null;
+    let ch: ReturnType<typeof supabase.channel> | null = null;
 
-    const ch = supabase.channel('lobby-broadcast-v3', { config: { broadcast: { self: false } } });
-    channelRef.current = ch;
+    const chName = `lobby-v4-${myCode.slice(0, 8)}`;
 
-    ch.on('broadcast', { event: 'SEARCH' }, ({ payload }: any) => {
-      if (done || payload.code === myCode) return;
+    const start = () => {
+      ch = supabase.channel(chName, { config: { broadcast: { self: false } } });
 
-      const sorted = [myCode, payload.code].sort();
-      const isHost = sorted[0] === myCode;
-      if (!isHost) return;
+      ch.on('broadcast', { event: 'SEARCH' }, ({ payload }: any) => {
+        if (done || payload.tabId === TAB_ID) return;
 
-      done = true;
-      clearInterval(broadcastIv);
-      setStatus('handshake');
+        const sorted = [myCode, payload.code].sort();
+        if (sorted[0] !== myCode) return;
 
-      const roomCode = `room_${sorted[0].slice(0, 8)}_${sorted[1].slice(0, 8)}`;
+        done = true;
+        clearInterval(broadcastIv);
+        setStatus('handshake');
 
-      ch.send({
-        type: 'broadcast', event: 'INVITE',
-        payload: { from: myCode, to: payload.code, roomCode, charId, name: myName },
+        const roomCode = `room_${sorted[0].slice(0, 8)}_${sorted[1].slice(0, 8)}`;
+
+        ch!.send({
+          type: 'broadcast', event: 'INVITE',
+          payload: { from: myCode, to: payload.code, tabId: TAB_ID, roomCode, charId, name: myName },
+        });
+
+        handshakeTimeout = setTimeout(() => {
+          done = false;
+          setStatus('searching');
+          broadcastIv = setInterval(() => {
+            if (!done) ch!.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, tabId: TAB_ID, charId, name: myName } });
+          }, 2000);
+        }, 5000);
       });
 
-      const onAccept = ({ payload: p }: any) => {
-        if (p.roomCode !== roomCode || p.from !== payload.code) return;
+      ch.on('broadcast', { event: 'ACCEPT' }, ({ payload: p }: any) => {
+        if (done && status !== 'handshake') return;
+        if (p.tabId === TAB_ID) return;
         clearTimeout(handshakeTimeout);
+        done = true;
         setOpponent({ charId: p.charId, name: p.name });
         setStatus('found');
         setTimeout(() => {
-          ch.unsubscribe();
-          onMatched(roomCode, p.charId);
+          supabase.removeChannel(ch!);
+          onMatched(p.roomCode, p.charId);
         }, 3000);
-      };
-      ch.on('broadcast', { event: 'ACCEPT' }, onAccept);
-
-      handshakeTimeout = setTimeout(() => {
-        done = false;
-        setStatus('searching');
-        broadcastIv = setInterval(() => {
-          ch.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, charId, name: myName } });
-        }, 2000);
-      }, 5000);
-    });
-
-    ch.on('broadcast', { event: 'INVITE' }, ({ payload }: any) => {
-      if (done || payload.to !== myCode) return;
-      done = true;
-      clearInterval(broadcastIv);
-
-      setOpponent({ charId: payload.charId, name: payload.name });
-      setStatus('found');
-
-      ch.send({
-        type: 'broadcast', event: 'ACCEPT',
-        payload: { from: myCode, roomCode: payload.roomCode, charId, name: myName },
       });
 
-      setTimeout(() => {
-        ch.unsubscribe();
-        onMatched(payload.roomCode, payload.charId);
-      }, 3000);
-    });
+      ch.on('broadcast', { event: 'INVITE' }, ({ payload }: any) => {
+        if (done || payload.to !== myCode || payload.tabId === TAB_ID) return;
+        done = true;
+        clearInterval(broadcastIv);
 
-    ch.subscribe((s) => {
-      if (s === 'SUBSCRIBED') {
-        ch.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, charId, name: myName } });
-        broadcastIv = setInterval(() => {
-          if (!done) ch.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, charId, name: myName } });
-        }, 2000);
-      }
-    });
+        setOpponent({ charId: payload.charId, name: payload.name });
+        setStatus('found');
+
+        ch!.send({
+          type: 'broadcast', event: 'ACCEPT',
+          payload: { from: myCode, tabId: TAB_ID, roomCode: payload.roomCode, charId, name: myName },
+        });
+
+        setTimeout(() => {
+          supabase.removeChannel(ch!);
+          onMatched(payload.roomCode, payload.charId);
+        }, 3000);
+      });
+
+      ch.subscribe((s) => {
+        if (s === 'SUBSCRIBED') {
+          ch!.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, tabId: TAB_ID, charId, name: myName } });
+          broadcastIv = setInterval(() => {
+            if (!done) ch!.send({ type: 'broadcast', event: 'SEARCH', payload: { code: myCode, tabId: TAB_ID, charId, name: myName } });
+          }, 2000);
+        }
+      });
+    };
+
+    start();
 
     cleanupRef.current = () => {
       done = true;
       clearInterval(broadcastIv);
       clearTimeout(handshakeTimeout);
-      ch.unsubscribe();
+      if (ch) supabase.removeChannel(ch);
     };
 
     return () => { cleanupRef.current?.(); };

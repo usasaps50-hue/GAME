@@ -442,8 +442,13 @@ export default function OnlineBattle({ charId, level, remoteCharId, roomCode, on
     ch.on('broadcast', { event: 'OVER' }, () => { const g = gsR.current; if (g && !g.over) { g.over = true; g.won = true; } });
     ch.subscribe();
     chRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
-  }, [roomCode]);
+
+    const noOpponentTimeout = setTimeout(() => {
+      if (!remoteRef.current) onFinish(false);
+    }, 7000);
+
+    return () => { clearTimeout(noOpponentTimeout); supabase.removeChannel(ch); };
+  }, [roomCode, onFinish]);
 
   useEffect(() => {
     const c = cvs.current!;
