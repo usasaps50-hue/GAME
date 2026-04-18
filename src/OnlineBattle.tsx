@@ -406,6 +406,9 @@ export default function OnlineBattle({ charId, level, remoteCharId, roomCode, on
   const pendingDmg = useRef<any[]>([]);
   const tickTimer = useRef(0);
   const lastTick = useRef(Date.now());
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
+  const [waiting, setWaiting] = useState(true);
 
   const [ui, setUi] = useState({
     pHp: 1, pMax: 1, eHp: 1, eMax: 1,
@@ -437,18 +440,18 @@ export default function OnlineBattle({ charId, level, remoteCharId, roomCode, on
 
   useEffect(() => {
     const ch = supabase.channel(`battle:${roomCode}`, { config: { broadcast: { self: false } } });
-    ch.on('broadcast', { event: 'TICK' }, ({ payload }: any) => { remoteRef.current = payload; lastTick.current = Date.now(); });
+    ch.on('broadcast', { event: 'TICK' }, ({ payload }: any) => { remoteRef.current = payload; lastTick.current = Date.now(); setWaiting(false); });
     ch.on('broadcast', { event: 'DMG' }, ({ payload }: any) => { pendingDmg.current.push(payload); });
     ch.on('broadcast', { event: 'OVER' }, () => { const g = gsR.current; if (g && !g.over) { g.over = true; g.won = true; } });
     ch.subscribe();
     chRef.current = ch;
 
     const noOpponentTimeout = setTimeout(() => {
-      if (!remoteRef.current) onFinish(false);
-    }, 7000);
+      if (!remoteRef.current) onFinishRef.current(false);
+    }, 5000);
 
     return () => { clearTimeout(noOpponentTimeout); supabase.removeChannel(ch); };
-  }, [roomCode, onFinish]);
+  }, [roomCode]);
 
   useEffect(() => {
     const c = cvs.current!;
@@ -557,9 +560,9 @@ export default function OnlineBattle({ charId, level, remoteCharId, roomCode, on
       disconnected: Date.now() - lastTick.current > 5000,
     });
 
-    if (g.over) { setTimeout(() => onFinish(g.won), 1200); return; }
+    if (g.over) { setTimeout(() => onFinishRef.current(g.won), 1200); return; }
     raf.current = requestAnimationFrame(loop);
-  }, [onFinish, charId, remoteCharId, sendDmgFn, sendTickFn]);
+  }, [charId, remoteCharId, sendDmgFn, sendTickFn]);
 
   useEffect(() => {
     prev.current = performance.now();
@@ -643,6 +646,14 @@ export default function OnlineBattle({ charId, level, remoteCharId, roomCode, on
     <div className="fixed inset-0 select-none touch-none overflow-hidden bg-[#120B2E]"
       onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}>
       <canvas ref={cvs} className="absolute inset-0" />
+
+      {waiting && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#120B2E]">
+          <div className="w-20 h-20 border-[6px] border-blue-400 border-t-transparent rounded-full animate-spin mb-6" />
+          <div className="text-xl font-black text-blue-400 mb-2">対戦相手に接続中...</div>
+          <div className="text-sm text-white/40">相手が見つからない場合、自動で戻ります</div>
+        </div>
+      )}
 
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/50 text-blue-400 bg-black/60 flex items-center gap-2">
         {ui.disconnected ? '⚠️ 切断' : '🌐'} ONLINE
