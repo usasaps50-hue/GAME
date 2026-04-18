@@ -3,28 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import BattleScreen from './BattleScreen';
+import OnlineBattle from './OnlineBattle';
+import { supabase } from './supabase';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Settings, 
-  ChevronLeft, 
-  Home, 
-  ShoppingBag, 
-  Users, 
-  Gamepad2, 
-  BookOpen, 
-  Zap, 
-  Shield, 
+import {
+  Settings,
+  ChevronLeft,
+  Home,
+  ShoppingBag,
+  Users,
+  Gamepad2,
+  BookOpen,
+  Zap,
+  Shield,
   Sword,
   Search,
   ArrowRightLeft,
-  X
+  X,
+  Wifi
 } from 'lucide-react';
 
 // --- Types & Data ---
 
-type Screen = 'home' | 'shop' | 'characters' | 'detail' | 'matching' | 'result' | 'battle';
+type Screen = 'home' | 'shop' | 'characters' | 'detail' | 'matching' | 'result' | 'battle' | 'online-match' | 'online-battle';
 
 interface Character {
   id: string;
@@ -138,7 +141,10 @@ const SKINS: Skin[] = [
   },
 ];
 
-const MODES: GameMode[] = [];
+const MODES: GameMode[] = [
+  { id: 'normal',  name: 'ノーマル',       description: '通常の1v1バトル', icon: '⚔️' },
+  { id: 'box',     name: 'ボックスバトル',  description: '壁あり密室バトル', icon: '📦' },
+];
 
 // --- Components ---
 
@@ -175,9 +181,11 @@ export default function App() {
   const [selectedCharId, setSelectedCharId] = useState<string | null>(
     INITIAL_CHARACTERS.length > 0 ? INITIAL_CHARACTERS[0].id : null
   );
-  const [selectedModeId, setSelectedModeId] = useState<string | null>(null);
+  const [selectedModeId, setSelectedModeId] = useState<string | null>('normal');
   const [burgers, setBurgers] = useState(100);
   const [hearts, setHearts] = useState(10);
+
+  const [onlineConfig, setOnlineConfig] = useState<{ roomCode: string; remoteCharId: string } | null>(null);
 
   const selectedChar = useMemo(() => INITIAL_CHARACTERS.find(c => c.id === selectedCharId) ?? null, [selectedCharId]);
   const selectedMode = useMemo(() => MODES.find(m => m.id === selectedModeId) ?? null, [selectedModeId]);
@@ -239,10 +247,32 @@ export default function App() {
         )}
         {activeScreen === 'battle' && selectedChar && (
           <BattleScreen
-            key="battle"
             charId={selectedChar.id}
             level={selectedChar.level}
+            mode={(selectedMode?.id ?? 'normal') as 'normal' | 'box'}
             onFinish={(won) => goTo(won ? 'result' : 'home')}
+          />
+        )}
+        {activeScreen === 'online-match' && selectedChar && (
+          <OnlineMatchScreen
+            charId={selectedChar.id}
+            onCancel={() => goTo('home')}
+            onMatched={(roomCode, remoteCharId) => {
+              setOnlineConfig({ roomCode, remoteCharId });
+              goTo('online-battle');
+            }}
+          />
+        )}
+        {activeScreen === 'online-battle' && selectedChar && onlineConfig && (
+          <OnlineBattle
+            charId={selectedChar.id}
+            level={selectedChar.level}
+            remoteCharId={onlineConfig.remoteCharId}
+            roomCode={onlineConfig.roomCode}
+            onFinish={(won) => {
+              setOnlineConfig(null);
+              goTo(won ? 'result' : 'home');
+            }}
           />
         )}
       </AnimatePresence>
@@ -357,6 +387,16 @@ function HomeScreen({ onGoTo, burgers, hearts, selectedChar, selectedMode, selec
             PLAY
           </Button>
         </div>
+
+        {/* Online Battle Button */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onGoTo('online-match')}
+          className="absolute bottom-6 right-6 w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 border-b-4 border-emerald-800 flex items-center justify-center shadow-[0_0_20px_rgba(52,211,153,0.4)] z-20"
+        >
+          <Wifi size={28} className="text-white" />
+        </motion.button>
       </div>
     </motion.div>
   );
@@ -630,6 +670,100 @@ function StatRow({ icon, label, value, color }: any) {
         </div>
       </div>
     </div>
+  );
+}
+
+function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; onCancel: () => void; onMatched: (roomCode: string, remoteCharId: string) => void }) {
+  const [status, setStatus] = useState<'searching' | 'found'>('searching');
+  const [dots, setDots] = useState('');
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    const iv = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const myCode = crypto.randomUUID();
+    const ch = supabase.channel('random-matchmaking', { config: { presence: { key: myCode } } });
+    channelRef.current = ch;
+
+    ch.on('presence', { event: 'sync' }, () => {
+      const state = ch.presenceState();
+      const keys = Object.keys(state);
+      if (keys.length >= 2) {
+        const sorted = keys.sort();
+        const isHost = sorted[0] === myCode;
+        const opponentKey = isHost ? sorted[1] : sorted[0];
+        const opponentData = (state[opponentKey] as any)?.[0];
+        const remoteCharId = opponentData?.charId ?? 'char_pochi';
+        const roomCode = `room_${sorted[0].slice(0, 8)}`;
+        setStatus('found');
+        setTimeout(() => {
+          ch.unsubscribe();
+          onMatched(roomCode, remoteCharId);
+        }, 1200);
+      }
+    });
+
+    ch.subscribe(async (s) => {
+      if (s === 'SUBSCRIBED') {
+        await ch.track({ charId, joinedAt: Date.now() });
+      }
+    });
+
+    return () => {
+      ch.unsubscribe();
+    };
+  }, [charId, onMatched]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="absolute inset-0 bg-game-radial flex flex-col items-center justify-center p-12"
+    >
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] opacity-5"
+          style={{ background: 'conic-gradient(from 0deg, transparent, #34d399, transparent, #10b981, transparent)' }}
+        />
+      </div>
+
+      <div className="relative z-10 flex flex-col items-center">
+        {status === 'searching' ? (
+          <>
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+              className="text-5xl font-black italic mb-2 tracking-[0.15em] text-white drop-shadow-glow"
+            >
+              オンライン対戦{dots}
+            </motion.div>
+            <div className="text-lg font-bold text-emerald-400 mb-12 uppercase tracking-widest">
+              対戦相手を探しています
+            </div>
+            <div className="w-48 h-48 border-[10px] border-emerald-400 border-t-transparent rounded-full animate-spin mb-16 shadow-[0_0_30px_rgba(52,211,153,0.3)]" />
+          </>
+        ) : (
+          <>
+            <motion.div
+              initial={{ scale: 0.5 }}
+              animate={{ scale: 1 }}
+              className="text-6xl font-black italic mb-4 text-emerald-400 drop-shadow-glow"
+            >
+              対戦相手が見つかりました！
+            </motion.div>
+            <div className="text-8xl mb-8">⚔️</div>
+          </>
+        )}
+
+        <Button variant="danger" onClick={() => { channelRef.current?.unsubscribe(); onCancel(); }} className="!px-12 !py-4">
+          キャンセル
+        </Button>
+      </div>
+    </motion.div>
   );
 }
 
