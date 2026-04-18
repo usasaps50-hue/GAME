@@ -669,9 +669,12 @@ const CHAR_LABEL: Record<string, string> = { char_pochi: 'ポチっとな', char
 function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; onCancel: () => void; onMatched: (roomCode: string, remoteCharId: string) => void }) {
   const [status, setStatus] = useState<'searching' | 'found'>('searching');
   const [dots, setDots] = useState('');
+  const [liveCount, setLiveCount] = useState(0);
   const [opponent, setOpponent] = useState<{ charId: string; name: string } | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const matchedRef = useRef(false);
+  const myCodeRef = useRef(crypto.randomUUID());
+  const myName = useRef(`Player${Math.floor(Math.random() * 9000 + 1000)}`);
 
   useEffect(() => {
     const iv = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
@@ -679,37 +682,55 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
   }, []);
 
   useEffect(() => {
-    const myCode = crypto.randomUUID();
-    const myJoinedAt = Date.now();
-    let ready = false;
-
-    const ch = supabase.channel('random-matchmaking', { config: { presence: { key: myCode } } });
+    const myCode = myCodeRef.current;
+    const ch = supabase.channel('random-matchmaking-v2', { config: { presence: { key: myCode } } });
     channelRef.current = ch;
 
-    const tryMatch = () => {
-      if (!ready || matchedRef.current) return;
+    const pingInterval = { current: 0 as any };
+
+    const countLive = () => {
       const state = ch.presenceState();
+      const now = Date.now();
+      let alive = 0;
+      for (const k of Object.keys(state)) {
+        if (k === myCode) continue;
+        const d = (state[k] as any)?.[0];
+        if (d?.ping && now - d.ping < 8000) alive++;
+      }
+      setLiveCount(alive);
+    };
+
+    const tryMatch = () => {
+      if (matchedRef.current) return;
+      const state = ch.presenceState();
+      const now = Date.now();
       const keys = Object.keys(state);
-      const opponents = keys.filter(k => {
+
+      const liveOpponents = keys.filter(k => {
         if (k === myCode) return false;
-        const data = (state[k] as any)?.[0];
-        if (!data?.joinedAt) return false;
-        return Math.abs(data.joinedAt - myJoinedAt) < 60000;
+        const d = (state[k] as any)?.[0];
+        if (!d?.ping) return false;
+        return now - d.ping < 8000;
       });
-      if (opponents.length === 0) return;
+
+      countLive();
+      if (liveOpponents.length === 0) return;
+
+      const opKey = liveOpponents[0];
+      const opData = (state[opKey] as any)?.[0];
+
       matchedRef.current = true;
-      const opponentKey = opponents[0];
-      const opponentData = (state[opponentKey] as any)?.[0];
-      const remoteCharId = opponentData?.charId ?? 'char_pochi';
-      const remoteName = opponentData?.name ?? 'Player';
-      const sorted = [myCode, opponentKey].sort();
+      const sorted = [myCode, opKey].sort();
       const roomCode = `room_${sorted[0].slice(0, 8)}_${sorted[1].slice(0, 8)}`;
-      setOpponent({ charId: remoteCharId, name: remoteName });
+
+      setOpponent({ charId: opData?.charId ?? 'char_pochi', name: opData?.name ?? 'Player' });
       setStatus('found');
+
       setTimeout(() => {
         ch.untrack();
         ch.unsubscribe();
-        onMatched(roomCode, remoteCharId);
+        clearInterval(pingInterval.current);
+        onMatched(roomCode, opData?.charId ?? 'char_pochi');
       }, 3000);
     };
 
@@ -718,12 +739,17 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
 
     ch.subscribe(async (s) => {
       if (s === 'SUBSCRIBED') {
-        await ch.track({ charId, joinedAt: myJoinedAt, name: `Player${Math.floor(Math.random() * 9000 + 1000)}` });
-        setTimeout(() => { ready = true; tryMatch(); }, 2000);
+        await ch.track({ charId, name: myName.current, ping: Date.now() });
+        pingInterval.current = setInterval(async () => {
+          if (!matchedRef.current) {
+            await ch.track({ charId, name: myName.current, ping: Date.now() });
+          }
+        }, 3000);
       }
     });
 
     return () => {
+      clearInterval(pingInterval.current);
       ch.untrack();
       ch.unsubscribe();
     };
@@ -753,10 +779,22 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
             >
               オンライン対戦{dots}
             </motion.div>
-            <div className="text-lg font-bold text-emerald-400 mb-12 uppercase tracking-widest">
+            <div className="text-lg font-bold text-emerald-400 mb-6 uppercase tracking-widest">
               対戦相手を探しています
             </div>
+
+            <div className="flex items-center gap-2 mb-10 px-5 py-2 rounded-full bg-black/40 border border-white/10">
+              <div className={`w-3 h-3 rounded-full ${liveCount > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+              <span className="text-sm font-bold text-white/80">
+                接続中: <span className={liveCount > 0 ? 'text-emerald-400' : 'text-gray-400'}>{liveCount}人</span> が対戦待ち
+              </span>
+            </div>
+
             <div className="w-48 h-48 border-[10px] border-emerald-400 border-t-transparent rounded-full animate-spin mb-16 shadow-[0_0_30px_rgba(52,211,153,0.3)]" />
+
+            <Button variant="danger" onClick={() => { channelRef.current?.untrack(); channelRef.current?.unsubscribe(); onCancel(); }} className="!px-12 !py-4">
+              キャンセル
+            </Button>
           </>
         ) : opponent && (
           <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center">
@@ -765,7 +803,6 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
             </div>
 
             <div className="flex items-center gap-8 mb-8">
-              {/* 自分 */}
               <div className="flex flex-col items-center">
                 <div className="text-8xl mb-3 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
                   {CHAR_EMOJI[charId] ?? '❓'}
@@ -774,7 +811,6 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
                 <div className="text-xs font-bold text-accent-cyan uppercase tracking-widest mt-1">YOU</div>
               </div>
 
-              {/* VS */}
               <motion.div
                 animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
                 transition={{ duration: 1, repeat: Infinity }}
@@ -783,7 +819,6 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
                 VS
               </motion.div>
 
-              {/* 相手 */}
               <div className="flex flex-col items-center">
                 <div className="text-8xl mb-3 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
                   {CHAR_EMOJI[opponent.charId] ?? '❓'}
@@ -801,12 +836,6 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
               バトル開始中...
             </motion.div>
           </motion.div>
-        )}
-
-        {status === 'searching' && (
-          <Button variant="danger" onClick={() => { channelRef.current?.untrack(); channelRef.current?.unsubscribe(); onCancel(); }} className="!px-12 !py-4">
-            キャンセル
-          </Button>
         )}
       </div>
     </motion.div>
