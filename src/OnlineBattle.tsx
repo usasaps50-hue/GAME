@@ -592,6 +592,43 @@ export default function OnlineBattle({ charId, level, remoteCharId, roomCode, on
     }
   }, []);
 
+  const keys = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const kd = (e: KeyboardEvent) => {
+      keys.current.add(e.key.toLowerCase());
+      if (e.key === ' ' || e.key === 'j') atkRef.current = true;
+      if (e.key === 'e' || e.key === 'k') ultRef.current = true;
+    };
+    const ku = (e: KeyboardEvent) => {
+      keys.current.delete(e.key.toLowerCase());
+      if (e.key === ' ' || e.key === 'j') atkRef.current = false;
+      if (e.key === 'e' || e.key === 'k') ultRef.current = false;
+    };
+    const updateKeys = () => {
+      const k = keys.current;
+      let dx = 0, dy = 0;
+      if (k.has('w') || k.has('arrowup')) dy = -1;
+      if (k.has('s') || k.has('arrowdown')) dy = 1;
+      if (k.has('a') || k.has('arrowleft')) dx = -1;
+      if (k.has('d') || k.has('arrowright')) dx = 1;
+      if (dx !== 0 || dy !== 0) {
+        const l = Math.sqrt(dx * dx + dy * dy);
+        left.current = { on: true, sx: 0, sy: 0, dx: dx / l, dy: dy / l };
+      } else if (!('ontouchstart' in window)) {
+        left.current = { on: false, sx: 0, sy: 0, dx: 0, dy: 0 };
+      }
+      keyFrame.current = requestAnimationFrame(updateKeys);
+    };
+    window.addEventListener('keydown', kd);
+    window.addEventListener('keyup', ku);
+    const keyFrame = { current: requestAnimationFrame(updateKeys) };
+    return () => {
+      window.removeEventListener('keydown', kd);
+      window.removeEventListener('keyup', ku);
+      cancelAnimationFrame(keyFrame.current);
+    };
+  }, []);
+
   const gR = Math.min(ui.gaugeT / TOASTER_MAX, 1);
   const jUP = Math.min(ui.jUltCharge / JAMIE_ULT_MAX, 1);
   const fUP = Math.min(ui.fUltCharge / FORK_ULT_MAX, 1);

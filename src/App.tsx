@@ -380,23 +380,13 @@ function HomeScreen({ onGoTo, burgers, hearts, selectedChar, selectedMode, selec
           )}
 
           <Button
-            onClick={() => onGoTo('battle')}
+            onClick={() => onGoTo('online-match')}
             variant="play"
             className="!px-12 !py-6 !text-3xl !rounded-2xl"
           >
-            PLAY
+            <Wifi size={28} /> PLAY
           </Button>
         </div>
-
-        {/* Online Battle Button */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => onGoTo('online-match')}
-          className="absolute bottom-6 right-6 w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 border-b-4 border-emerald-800 flex items-center justify-center shadow-[0_0_20px_rgba(52,211,153,0.4)] z-20"
-        >
-          <Wifi size={28} className="text-white" />
-        </motion.button>
       </div>
     </motion.div>
   );
