@@ -687,10 +687,8 @@ function OnlineMatchScreen({ charId, onCancel, onMatched }: { charId: string; on
     let handshakeTimeout: any = null;
     let ch: ReturnType<typeof supabase.channel> | null = null;
 
-    const chName = `lobby-v4-${myCode.slice(0, 8)}`;
-
     const start = () => {
-      ch = supabase.channel(chName, { config: { broadcast: { self: false } } });
+      ch = supabase.channel('lobby-shared', { config: { broadcast: { self: false } } });
 
       ch.on('broadcast', { event: 'SEARCH' }, ({ payload }: any) => {
         if (done || payload.tabId === TAB_ID) return;
